@@ -306,6 +306,7 @@ impl MappingInfo{
 
 	// Unified reporting method that logs errors into the HashMap
     pub fn report<S: AsRef<str>>(&mut self, issue: S) {
+        let issue = issue.as_ref();
         // Increment the count for the issue type
         *self.error_counts.entry(issue.to_string()).or_insert(0) += 1;
         //println!("Issue reported: {}", issue);
