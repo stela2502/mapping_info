@@ -57,7 +57,7 @@ use std::fs::File;
 let logfile = File::create("run.log").ok();
 
 let mut info = MappingInfo::new(
-    logfile,    // Optional<File>
+    Some(logfile),    // Optional<File>
     20.0,       // min_quality
     0           // max_reads (0 = unlimited)
 );
