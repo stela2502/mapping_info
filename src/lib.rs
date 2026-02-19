@@ -1,6 +1,6 @@
 use std::fs::File;
 use indicatif::{ProgressBar};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use num_format::{Locale, ToFormattedString};
 
@@ -10,7 +10,8 @@ use std::io::{Write};
 use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+
+use std::fmt;
 
 /// MappingInfo captures all mapping data and is a way to easily copy this data over multiple analysis runs.
 pub struct MappingInfo{
@@ -53,6 +54,160 @@ pub struct MappingInfo{
     std_out_is_tty: bool,
     pub hist:Vec<usize>,
 
+}
+
+impl fmt::Display for MappingInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // --- helpers ---
+        fn pct(n: usize, d: usize) -> f32 {
+            if d == 0 { 0.0 } else { (n as f32 / d as f32) * 100.0 }
+        }
+        fn dur_str(d: Duration) -> String {
+            let (h, m, s, ms) = MappingInfo::split_duration(d);
+            format!("{h} h {m} min {s} sec {ms} ms")
+        }
+
+        let analyzed = if self.analyzed == 0 { self.total } else { self.analyzed };
+        let unknown = self.quality + self.length + self.n_s + self.poly_a;
+
+        // Header
+        writeln!(f, "MappingInfo")?;
+        writeln!(f, "  started: {}", {
+            // keep it cheap, avoid chrono if you want, but you already use it:
+            let now: DateTime<Utc> = Utc::now();
+            now.to_string()
+        })?;
+        writeln!(f)?;
+
+        // Core counters
+        writeln!(f, "Counts")?;
+        writeln!(f, "  total reads        : {}", self.total.to_formatted_string(&Locale::en))?;
+        writeln!(
+            f,
+            "  cellular reads     : {} ({:.2}% of total)",
+            self.cellular_reads.to_formatted_string(&Locale::en),
+            pct(self.cellular_reads, self.total)
+        )?;
+        writeln!(
+            f,
+            "  ok reads           : {} ({:.2}% of analyzed)",
+            self.ok_reads.to_formatted_string(&Locale::en),
+            pct(self.ok_reads, analyzed)
+        )?;
+        writeln!(
+            f,
+            "  no cell id         : {} ({:.2}% of total)",
+            self.no_sample.to_formatted_string(&Locale::en),
+            pct(self.no_sample, self.total)
+        )?;
+        writeln!(
+            f,
+            "  no gene id         : {} ({:.2}% of total)",
+            self.no_data.to_formatted_string(&Locale::en),
+            pct(self.no_data, self.total)
+        )?;
+        writeln!(
+            f,
+            "  multimapper        : {} ({:.2}% of analyzed)",
+            self.multimapper.to_formatted_string(&Locale::en),
+            pct(self.multimapper, analyzed)
+        )?;
+        writeln!(
+            f,
+            "  pcr duplicates     : {}",
+            self.pcr_duplicates.to_formatted_string(&Locale::en)
+        )?;
+        writeln!(
+            f,
+            "  filtered (unknown) : {} ({:.2}% of total)",
+            unknown.to_formatted_string(&Locale::en),
+            pct(unknown, self.total)
+        )?;
+        writeln!(
+            f,
+            "    -> bad quality   : {} ({:.2}% of total)",
+            self.quality.to_formatted_string(&Locale::en),
+            pct(self.quality, self.total)
+        )?;
+        writeln!(
+            f,
+            "    -> too short     : {} ({:.2}% of total)",
+            self.length.to_formatted_string(&Locale::en),
+            pct(self.length, self.total)
+        )?;
+        writeln!(
+            f,
+            "    -> N's           : {} ({:.2}% of total)",
+            self.n_s.to_formatted_string(&Locale::en),
+            pct(self.n_s, self.total)
+        )?;
+        writeln!(
+            f,
+            "    -> polyA         : {} ({:.2}% of total)",
+            self.poly_a.to_formatted_string(&Locale::en),
+            pct(self.poly_a, self.total)
+        )?;
+        writeln!(f)?;
+
+        // Read-type breakdown (if any)
+        if !self.reads_log.is_empty() {
+            writeln!(f, "Read types")?;
+            for (name, value) in &self.reads_log {
+                let denom = self.cellular_reads;
+                writeln!(
+                    f,
+                    "  {:<20} {} reads ({:.2}% of cellular)",
+                    format!("{name}:"),
+                    value.to_formatted_string(&Locale::en),
+                    pct(*value, denom)
+                )?;
+            }
+            writeln!(f)?;
+        }
+
+        // Error report (if any)
+        if !self.error_counts.is_empty() {
+            writeln!(f, "Reported issues")?;
+            writeln!(f, "  {:<32} {}", "Error Type", "Count")?;
+            writeln!(f, "  {}", "-".repeat(32 + 1 + 12))?;
+            // stable order: sort by key
+            let mut keys: Vec<_> = self.error_counts.keys().collect();
+            keys.sort();
+            for k in keys {
+                let c = self.error_counts.get(k).copied().unwrap_or(0);
+                writeln!(
+                    f,
+                    "  {:<32} {}",
+                    k,
+                    c.to_formatted_string(&Locale::en)
+                )?;
+            }
+            writeln!(f)?;
+        }
+
+        // Histogram (only show if anything non-zero)
+        if self.hist.iter().any(|&x| x != 0) {
+            writeln!(f, "Histogram")?;
+            for (i, &v) in self.hist.iter().enumerate() {
+                if v != 0 {
+                    writeln!(f, "  bin {:>2}: {}", i, v.to_formatted_string(&Locale::en))?;
+                }
+            }
+            writeln!(f)?;
+        }
+
+        // Timings
+        writeln!(f, "Timings")?;
+        writeln!(f, "  overall     : {}", dur_str(self.absolute_start.elapsed().unwrap_or(Duration::new(0, 0))))?;
+        writeln!(f, "  file I/O    : {}", dur_str(self.file_io_time))?;
+        writeln!(f, "  single-cpu  : {}", dur_str(self.single_processor_time))?;
+        writeln!(f, "  multi-cpu   : {}", dur_str(self.multi_processor_time))?;
+        if self.subprocess_time != Duration::new(0, 0) {
+            writeln!(f, "  subprocess  : {}", dur_str(self.subprocess_time))?;
+        }
+
+        Ok(())
+    }
 }
 
 impl MappingInfo{
@@ -150,7 +305,8 @@ impl MappingInfo{
 	}
 
 	// Unified reporting method that logs errors into the HashMap
-    pub fn report(&mut self, issue: &str) {
+    pub fn report<S: AsRef<str>>(&mut self, issue: S) {
+        let issue = issue.as_ref();
         // Increment the count for the issue type
         *self.error_counts.entry(issue.to_string()).or_insert(0) += 1;
         //println!("Issue reported: {}", issue);
