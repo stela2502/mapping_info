@@ -316,7 +316,7 @@ impl MappingInfo{
 
     // Unified reporting method that logs errors into the HashMap
     pub fn report(&mut self, info: impl Into<String>) {
-        *self.read_log.entry(info.into()).or_insert(0) += 1;
+        *self.reads_log.entry(info.into()).or_insert(0) += 1;
     }
     
     // Optionally, add a method to retrieve counts for a specific issue
