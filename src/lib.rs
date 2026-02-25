@@ -170,9 +170,10 @@ impl fmt::Display for MappingInfo {
 
         // Error report (if any)
         if !self.error_counts.is_empty() {
+            let total = self.error_counts.values().sum();
             writeln!(f, "Reported issues")?;
-            writeln!(f, "  {:<32} {}", "Error Type", "Count")?;
-            writeln!(f, "  {}", "-".repeat(32 + 1 + 12))?;
+            writeln!(f, "  {:<32} {:<15} {}", "Error Type", "Count", "Fraction total [%]")?;
+            writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 6))?;
             // stable order: sort by key
             let mut keys: Vec<_> = self.error_counts.keys().collect();
             keys.sort();
@@ -180,9 +181,10 @@ impl fmt::Display for MappingInfo {
                 let c = self.error_counts.get(k).copied().unwrap_or(0);
                 writeln!(
                     f,
-                    "  {:<32} {}",
+                    "  {:<32} {} {:.2}",
                     k,
-                    c.to_formatted_string(&Locale::en)
+                    c.to_formatted_string(&Locale::en),
+                    pct(c, total),
                 )?;
             }
             writeln!(f)?;
