@@ -156,10 +156,12 @@ impl fmt::Display for MappingInfo {
         if !self.reads_log.is_empty() {
             let total = self.reads_log.values().sum();
             writeln!(f, "Read types (n={})", total)?;
+            writeln!(f, "  {:<32} {:<15} {}", "Type", "Count", "Fraction total [%]")?;
+            writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 19))?;
             for (name, value) in &self.reads_log {
                 writeln!(
                     f,
-                    "  {:<20} {:<10} reads ({:.2}% of read-types)",
+                    "  {:<32} {:<15} {:.2}",
                     format!("{name}:"),
                     value.to_formatted_string(&Locale::en),
                     pct(*value, total)
