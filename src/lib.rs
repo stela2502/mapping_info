@@ -51,6 +51,7 @@ pub struct MappingInfo{
     pub reads_log: BTreeMap<String, usize >,
     pub error_counts: HashMap<String, usize>,  // To store error types and their counts
     // log should also print (if not likely to tty)
+    #[allow(dead_code)]
     std_out_is_tty: bool,
     pub hist:Vec<usize>,
 
@@ -80,86 +81,88 @@ impl fmt::Display for MappingInfo {
         writeln!(f)?;
 
         // Core counters
-        writeln!(f, "Counts")?;
-        writeln!(f, "  total reads        : {}", self.total.to_formatted_string(&Locale::en))?;
-        writeln!(
-            f,
-            "  cellular reads     : {} ({:.2}% of total)",
-            self.cellular_reads.to_formatted_string(&Locale::en),
-            pct(self.cellular_reads, self.total)
-        )?;
-        writeln!(
-            f,
-            "  ok reads           : {} ({:.2}% of analyzed)",
-            self.ok_reads.to_formatted_string(&Locale::en),
-            pct(self.ok_reads, analyzed)
-        )?;
-        writeln!(
-            f,
-            "  no cell id         : {} ({:.2}% of total)",
-            self.no_sample.to_formatted_string(&Locale::en),
-            pct(self.no_sample, self.total)
-        )?;
-        writeln!(
-            f,
-            "  no gene id         : {} ({:.2}% of total)",
-            self.no_data.to_formatted_string(&Locale::en),
-            pct(self.no_data, self.total)
-        )?;
-        writeln!(
-            f,
-            "  multimapper        : {} ({:.2}% of analyzed)",
-            self.multimapper.to_formatted_string(&Locale::en),
-            pct(self.multimapper, analyzed)
-        )?;
-        writeln!(
-            f,
-            "  pcr duplicates     : {}",
-            self.pcr_duplicates.to_formatted_string(&Locale::en)
-        )?;
-        writeln!(
-            f,
-            "  filtered (unknown) : {} ({:.2}% of total)",
-            unknown.to_formatted_string(&Locale::en),
-            pct(unknown, self.total)
-        )?;
-        writeln!(
-            f,
-            "    -> bad quality   : {} ({:.2}% of total)",
-            self.quality.to_formatted_string(&Locale::en),
-            pct(self.quality, self.total)
-        )?;
-        writeln!(
-            f,
-            "    -> too short     : {} ({:.2}% of total)",
-            self.length.to_formatted_string(&Locale::en),
-            pct(self.length, self.total)
-        )?;
-        writeln!(
-            f,
-            "    -> N's           : {} ({:.2}% of total)",
-            self.n_s.to_formatted_string(&Locale::en),
-            pct(self.n_s, self.total)
-        )?;
-        writeln!(
-            f,
-            "    -> polyA         : {} ({:.2}% of total)",
-            self.poly_a.to_formatted_string(&Locale::en),
-            pct(self.poly_a, self.total)
-        )?;
-        writeln!(f)?;
+        if  self.total > 0 {
+            writeln!(f, "Counts")?;
+            writeln!(f, "  total reads        : {}", self.total.to_formatted_string(&Locale::en))?;
+            writeln!(
+                f,
+                "  cellular reads     : {} ({:.2}% of total)",
+                self.cellular_reads.to_formatted_string(&Locale::en),
+                pct(self.cellular_reads, self.total)
+            )?;
+            writeln!(
+                f,
+                "  ok reads           : {} ({:.2}% of analyzed)",
+                self.ok_reads.to_formatted_string(&Locale::en),
+                pct(self.ok_reads, analyzed)
+            )?;
+            writeln!(
+                f,
+                "  no cell id         : {} ({:.2}% of total)",
+                self.no_sample.to_formatted_string(&Locale::en),
+                pct(self.no_sample, self.total)
+            )?;
+            writeln!(
+                f,
+                "  no gene id         : {} ({:.2}% of total)",
+                self.no_data.to_formatted_string(&Locale::en),
+                pct(self.no_data, self.total)
+            )?;
+            writeln!(
+                f,
+                "  multimapper        : {} ({:.2}% of analyzed)",
+                self.multimapper.to_formatted_string(&Locale::en),
+                pct(self.multimapper, analyzed)
+            )?;
+            writeln!(
+                f,
+                "  pcr duplicates     : {}",
+                self.pcr_duplicates.to_formatted_string(&Locale::en)
+            )?;
+            writeln!(
+                f,
+                "  filtered (unknown) : {} ({:.2}% of total)",
+                unknown.to_formatted_string(&Locale::en),
+                pct(unknown, self.total)
+            )?;
+            writeln!(
+                f,
+                "    -> bad quality   : {} ({:.2}% of total)",
+                self.quality.to_formatted_string(&Locale::en),
+                pct(self.quality, self.total)
+            )?;
+            writeln!(
+                f,
+                "    -> too short     : {} ({:.2}% of total)",
+                self.length.to_formatted_string(&Locale::en),
+                pct(self.length, self.total)
+            )?;
+            writeln!(
+                f,
+                "    -> N's           : {} ({:.2}% of total)",
+                self.n_s.to_formatted_string(&Locale::en),
+                pct(self.n_s, self.total)
+            )?;
+            writeln!(
+                f,
+                "    -> polyA         : {} ({:.2}% of total)",
+                self.poly_a.to_formatted_string(&Locale::en),
+                pct(self.poly_a, self.total)
+            )?;
+            writeln!(f)?;
+        }
 
         // Read-type breakdown (if any)
         if !self.reads_log.is_empty() {
-            writeln!(f, "Read types")?;
+            let total = self.reads_log.values().sum();
+            writeln!(f, "Read types (n={})", total)?;
             for (name, value) in &self.reads_log {
-                let denom = self.cellular_reads;
                 writeln!(
                     f,
-                    "  {:<20} {} reads ({:.2}% of cellular)",
+                    "  {:<20} {} reads ({:.2}% of read-types)",
                     format!("{name}:"),
                     value.to_formatted_string(&Locale::en),
-                    pct(*value, denom)
+                    pct(*value, total)
                 )?;
             }
             writeln!(f)?;
@@ -489,4 +492,176 @@ impl MappingInfo{
         result
 	}
 	
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, SystemTime};
+
+    fn base(mi_total: usize) -> MappingInfo {
+        // Build a MappingInfo that is deterministic enough for string assertions
+        // (absolute_start is set in the past so overall elapsed is non-zero).
+        let mut m = MappingInfo::new(None, 0.0, 0);
+        m.total = mi_total;
+
+        // Make timings deterministic-ish (overall is variable; we won't assert its value)
+        m.absolute_start = SystemTime::now() - Duration::from_millis(25);
+        m.file_io_time = Duration::from_millis(10);
+        m.single_processor_time = Duration::from_millis(20);
+        m.multi_processor_time = Duration::from_millis(30);
+        m.subprocess_time = Duration::new(0, 0);
+
+        // Keep analyzed stable for % of analyzed lines in Counts
+        m.analyzed = if mi_total == 0 { 0 } else { mi_total };
+
+        m
+    }
+
+    #[test]
+    fn mapping_info_display_includes_and_omits_variable_sections_correctly() {
+        // ---------------------------
+        // Case A: "minimal" (no totals, no logs, no errors, hist all zero)
+        // ---------------------------
+        let m0 = base(0);
+        let s0 = format!("{m0}");
+
+        // Always present
+        assert!(s0.contains("MappingInfo\n"));
+        assert!(s0.contains("  started: ")); // don't assert the actual timestamp
+        assert!(s0.contains("\nTimings\n"));
+
+        // Variable sections must be absent
+        assert!(!s0.contains("\nCounts\n"));
+        assert!(!s0.contains("\nRead types (n="));
+        assert!(!s0.contains("\nReported issues\n"));
+        assert!(!s0.contains("\nHistogram\n"));
+
+        // subprocess line absent if subprocess_time == 0
+        assert!(!s0.contains("  subprocess  : "));
+
+        // Some stable timing labels should exist
+        assert!(s0.contains("  file I/O    : "));
+        assert!(s0.contains("  single-cpu  : "));
+        assert!(s0.contains("  multi-cpu   : "));
+
+        // ---------------------------
+        // Case B: full (counts + read types + errors + histogram + subprocess)
+        // ---------------------------
+        let mut m1 = base(1000);
+
+        // Counters (choose values that make sense)
+        m1.cellular_reads = 600;
+        m1.ok_reads = 500;
+        m1.no_sample = 50;
+        m1.no_data = 100;
+        m1.multimapper = 20;
+        m1.pcr_duplicates = 7;
+
+        // "unknown" (as used by your Display) = quality + length + n_s + poly_a
+        m1.quality = 10;
+        m1.length = 5;
+        m1.n_s = 3;
+        m1.poly_a = 2;
+
+        // read types section
+        m1.iter_read_type("expression reads");
+        m1.iter_read_type("expression reads");
+        m1.iter_read_type("antibody reads");
+        // now reads_log sum should be 3
+
+        // error report section (also tests sorting by key)
+        m1.report("zzz");
+        m1.report("aaa");
+        m1.report("aaa");
+
+        // histogram section: only non-zero bins printed
+        m1.hist[0] = 0;
+        m1.hist[1] = 2;
+        m1.hist[2] = 0;
+        m1.hist[3] = 5;
+
+        // subprocess time line present only if non-zero
+        m1.subprocess_time = Duration::from_millis(12);
+
+        let s1 = format!("{m1}");
+
+        // ---- Counts present ----
+        assert!(s1.contains("\nCounts\n"));
+        assert!(s1.contains("  total reads        : 1,000"));
+        assert!(s1.contains("  cellular reads     : 600"));
+        assert!(s1.contains("  ok reads           : 500"));
+        assert!(s1.contains("  no cell id         : 50"));
+        assert!(s1.contains("  no gene id         : 100"));
+        assert!(s1.contains("  multimapper        : 20"));
+        assert!(s1.contains("  pcr duplicates     : 7"));
+
+        // Unknown breakdown present
+        assert!(s1.contains("  filtered (unknown) : 20")); // 10+5+3+2 = 20
+        assert!(s1.contains("    -> bad quality   : 10"));
+        assert!(s1.contains("    -> too short     : 5"));
+        assert!(s1.contains("    -> N's           : 3"));
+        assert!(s1.contains("    -> polyA         : 2"));
+
+        // ---- Read types present + correct n ----
+        // reads_log: expression=2, antibody=1 => total=3
+        assert!(s1.contains("\nRead types (n=3)\n"));
+        assert!(s1.contains("expression reads:"));
+        assert!(s1.contains("antibody reads:"));
+
+        // ---- Reported issues present + sorted ----
+        assert!(s1.contains("\nReported issues\n"));
+        // Check header line exists
+        assert!(s1.contains("  Error Type"));
+        // Sorted order: aaa then zzz (your Display sorts keys)
+        let pos_aaa = s1.find("\n  aaa").expect("missing 'aaa' row");
+        let pos_zzz = s1.find("\n  zzz").expect("missing 'zzz' row");
+        assert!(pos_aaa < pos_zzz, "error keys should be printed sorted");
+
+        // ---- Histogram present and only non-zero bins printed ----
+        assert!(s1.contains("\nHistogram\n"));
+        assert!(s1.contains("  bin  1: 2"));
+        assert!(s1.contains("  bin  3: 5"));
+        // should not print zero bins
+        assert!(!s1.contains("  bin  0: "));
+        assert!(!s1.contains("  bin  2: "));
+
+        // ---- Timings always present + subprocess present when non-zero ----
+        assert!(s1.contains("\nTimings\n"));
+        assert!(s1.contains("  subprocess  : "));
+    }
+
+    #[test]
+    fn read_types_section_uses_sum_of_reads_log_as_denominator_and_is_safe_for_empty() {
+        // Empty map => section absent
+        let m0 = base(123);
+        let s0 = format!("{m0}");
+        assert!(!s0.contains("\nRead types (n="));
+
+        // Non-empty => n equals sum, and % uses that denominator (spot-check with 2/4 = 50%)
+        let mut m1 = base(123);
+        m1.reads_log.insert("A".into(), 2);
+        m1.reads_log.insert("B".into(), 2);
+        let s1 = format!("{m1}");
+        assert!(s1.contains("\nRead types (n=4)\n"));
+
+        // Very light check that percent formatting exists and isn't NaN/inf
+        // (We don't assert exact rounding because it's easy to change pct formatting later.)
+        assert!(s1.contains("% of read-types)"));
+    }
+
+    #[test]
+    fn counts_section_is_gated_by_total_only() {
+        let mut m0 = base(0);
+        // even if other counters are non-zero, total==0 => Counts should not appear
+        m0.ok_reads = 10;
+        m0.cellular_reads = 10;
+        let s0 = format!("{m0}");
+        assert!(!s0.contains("\nCounts\n"));
+
+        let m1 = base(1);
+        let s1 = format!("{m1}");
+        assert!(s1.contains("\nCounts\n"));
+    }
 }
