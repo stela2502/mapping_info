@@ -155,7 +155,7 @@ impl fmt::Display for MappingInfo {
         // Read-type breakdown (if any)
         if !self.reads_log.is_empty() {
             let total = self.reads_log.values().sum();
-            writeln!(f, "Read types (n={})", total)?;
+            writeln!(f, "Read types (n={})", total.to_formatted_string(&Locale::en))?;
             writeln!(f, "  {:<32} {:<15} {}", "Type", "Count", "Fraction total [%]")?;
             writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 19))?;
             for (name, value) in &self.reads_log {
@@ -173,7 +173,7 @@ impl fmt::Display for MappingInfo {
         // Error report (if any)
         if !self.error_counts.is_empty() {
             let total = self.error_counts.values().sum();
-            writeln!(f, "Reported issues")?;
+            writeln!(f, "Reported issues (n={})", total.to_formatted_string(&Locale::en) )?;
             writeln!(f, "  {:<32} {:<15} {}", "Error Type", "Count", "Fraction total [%]")?;
             writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 19))?;
             // stable order: sort by key
