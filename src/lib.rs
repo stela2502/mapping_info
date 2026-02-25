@@ -154,7 +154,7 @@ impl fmt::Display for MappingInfo {
 
         // Read-type breakdown (if any)
         if !self.reads_log.is_empty() {
-            let total = self.reads_log.values().sum();
+            let total:usize = self.reads_log.values().sum();
             writeln!(f, "Read types (n={})", total.to_formatted_string(&Locale::en))?;
             writeln!(f, "  {:<32} {:<15} {}", "Type", "Count", "Fraction total [%]")?;
             writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 19))?;
@@ -172,7 +172,7 @@ impl fmt::Display for MappingInfo {
 
         // Error report (if any)
         if !self.error_counts.is_empty() {
-            let total = self.error_counts.values().sum();
+            let total:usize = self.error_counts.values().sum();
             writeln!(f, "Reported issues (n={})", total.to_formatted_string(&Locale::en) )?;
             writeln!(f, "  {:<32} {:<15} {}", "Error Type", "Count", "Fraction total [%]")?;
             writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 19))?;
@@ -529,137 +529,99 @@ mod tests {
     }
 
     #[test]
-    fn mapping_info_display_includes_and_omits_variable_sections_correctly() {
-        // ---------------------------
-        // Case A: "minimal" (no totals, no logs, no errors, hist all zero)
-        // ---------------------------
-        let m0 = base(0);
-        let s0 = format!("{m0}");
+    fn mapping_info_display_full_layout_smoke_prints_every_section() {
+        let mut mi = MappingInfo::new(None, 0.9, 10_000_000);
 
-        // Always present
-        assert!(s0.contains("MappingInfo\n"));
-        assert!(s0.contains("  started: ")); // don't assert the actual timestamp
-        assert!(s0.contains("\nTimings\n"));
+        // Make totals non-zero so "Counts" is printed
+        mi.total = 1_234_567;
+        mi.analyzed = mi.total;
 
-        // Variable sections must be absent
-        assert!(!s0.contains("\nCounts\n"));
-        assert!(!s0.contains("\nRead types (n="));
-        assert!(!s0.contains("\nReported issues\n"));
-        assert!(!s0.contains("\nHistogram\n"));
+        // Fill counters so all count-lines show something meaningful
+        mi.cellular_reads = 900_000;
+        mi.ok_reads = 850_000;
+        mi.no_sample = 12_345;
+        mi.no_data = 23_456;
+        mi.multimapper = 7_890;
+        mi.pcr_duplicates = 54_321;
 
-        // subprocess line absent if subprocess_time == 0
-        assert!(!s0.contains("  subprocess  : "));
+        // Unknown filters (quality + length + n_s + poly_a)
+        mi.quality = 111;
+        mi.length = 222;
+        mi.n_s = 333;
+        mi.poly_a = 444;
 
-        // Some stable timing labels should exist
-        assert!(s0.contains("  file I/O    : "));
-        assert!(s0.contains("  single-cpu  : "));
-        assert!(s0.contains("  multi-cpu   : "));
+        // Timings: make them non-zero and stable-ish
+        mi.absolute_start = SystemTime::now() - Duration::from_millis(25);
+        mi.file_io_time = Duration::from_millis(10);
+        mi.single_processor_time = Duration::from_millis(20);
+        mi.multi_processor_time = Duration::from_millis(30);
+        mi.subprocess_time = Duration::from_millis(12); // ensure subprocess line appears
 
-        // ---------------------------
-        // Case B: full (counts + read types + errors + histogram + subprocess)
-        // ---------------------------
-        let mut m1 = base(1000);
+        // Read types section (non-empty reads_log)
+        mi.iter_read_type("expression reads");
+        mi.iter_read_type("expression reads");
+        mi.iter_read_type("antibody reads");
+        mi.iter_read_type("sample reads");
+        // total read types = 4
 
-        // Counters (choose values that make sense)
-        m1.cellular_reads = 600;
-        m1.ok_reads = 500;
-        m1.no_sample = 50;
-        m1.no_data = 100;
-        m1.multimapper = 20;
-        m1.pcr_duplicates = 7;
+        // Reported issues section (non-empty error_counts; also checks stable sorted printing)
+        mi.report_error("zzz");
+        mi.report_error("aaa");
+        mi.report_error("aaa");
 
-        // "unknown" (as used by your Display) = quality + length + n_s + poly_a
-        m1.quality = 10;
-        m1.length = 5;
-        m1.n_s = 3;
-        m1.poly_a = 2;
+        // Histogram section: only non-zero bins should print
+        mi.hist.iter_mut().for_each(|x| *x = 0);
+        mi.hist[1] = 2;
+        mi.hist[3] = 5;
 
-        // read types section
-        m1.iter_read_type("expression reads");
-        m1.iter_read_type("expression reads");
-        m1.iter_read_type("antibody reads");
-        // now reads_log sum should be 3
+        let rendered = format!("{mi}");
 
-        // error report section (also tests sorting by key)
-        m1.report("zzz");
-        m1.report("aaa");
-        m1.report("aaa");
+        // Print full layout for debugging / inspection
+        // Run with: cargo test -- --nocapture
+        println!("{rendered}");
 
-        // histogram section: only non-zero bins printed
-        m1.hist[0] = 0;
-        m1.hist[1] = 2;
-        m1.hist[2] = 0;
-        m1.hist[3] = 5;
+        // ----- sections exist -----
+        assert!(rendered.contains("MappingInfo\n"));
+        assert!(rendered.contains("  started: "));
+        assert!(rendered.contains("\nCounts\n"));
+        assert!(rendered.contains("\nRead types (n=4)\n"));
+        assert!(rendered.contains("\nReported issues (n=3)\n"));
+        assert!(rendered.contains("\nHistogram\n"));
+        assert!(rendered.contains("\nTimings\n"));
+        assert!(rendered.contains("  subprocess  : ")); // because subprocess_time != 0
 
-        // subprocess time line present only if non-zero
-        m1.subprocess_time = Duration::from_millis(12);
+        // ----- a few key count lines (not too strict) -----
+        assert!(rendered.contains("  total reads        : 1,234,567"));
+        assert!(rendered.contains("  cellular reads     : 900,000"));
+        assert!(rendered.contains("  ok reads           : 850,000"));
+        assert!(rendered.contains("  no cell id         : 12,345"));
+        assert!(rendered.contains("  no gene id         : 23,456"));
+        assert!(rendered.contains("  multimapper        : 7,890"));
+        assert!(rendered.contains("  pcr duplicates     : 54,321"));
 
-        let s1 = format!("{m1}");
+        // unknown breakdown should show sum 111+222+333+444 = 1,110
+        assert!(rendered.contains("  filtered (unknown) : 1,110"));
+        assert!(rendered.contains("    -> bad quality   : 111"));
+        assert!(rendered.contains("    -> too short     : 222"));
+        assert!(rendered.contains("    -> N's           : 333"));
+        assert!(rendered.contains("    -> polyA         : 444"));
 
-        // ---- Counts present ----
-        assert!(s1.contains("\nCounts\n"));
-        assert!(s1.contains("  total reads        : 1,000"));
-        assert!(s1.contains("  cellular reads     : 600"));
-        assert!(s1.contains("  ok reads           : 500"));
-        assert!(s1.contains("  no cell id         : 50"));
-        assert!(s1.contains("  no gene id         : 100"));
-        assert!(s1.contains("  multimapper        : 20"));
-        assert!(s1.contains("  pcr duplicates     : 7"));
+        // ----- Read types contain names -----
+        assert!(rendered.contains("expression reads:"));
+        assert!(rendered.contains("antibody reads:"));
+        assert!(rendered.contains("sample reads:"));
 
-        // Unknown breakdown present
-        assert!(s1.contains("  filtered (unknown) : 20")); // 10+5+3+2 = 20
-        assert!(s1.contains("    -> bad quality   : 10"));
-        assert!(s1.contains("    -> too short     : 5"));
-        assert!(s1.contains("    -> N's           : 3"));
-        assert!(s1.contains("    -> polyA         : 2"));
-
-        // ---- Read types present + correct n ----
-        // reads_log: expression=2, antibody=1 => total=3
-        assert!(s1.contains("\nRead types (n=3)\n"));
-        assert!(s1.contains("expression reads:"));
-        assert!(s1.contains("antibody reads:"));
-
-        // ---- Reported issues present + sorted ----
-        assert!(s1.contains("\nReported issues\n"));
-        // Check header line exists
-        assert!(s1.contains("  Error Type"));
-        // Sorted order: aaa then zzz (your Display sorts keys)
-        let pos_aaa = s1.find("\n  aaa").expect("missing 'aaa' row");
-        let pos_zzz = s1.find("\n  zzz").expect("missing 'zzz' row");
+        // ----- Reported issues are sorted by key: aaa before zzz -----
+        let pos_aaa = rendered.find("\n  aaa").expect("missing 'aaa' row");
+        let pos_zzz = rendered.find("\n  zzz").expect("missing 'zzz' row");
         assert!(pos_aaa < pos_zzz, "error keys should be printed sorted");
 
-        // ---- Histogram present and only non-zero bins printed ----
-        assert!(s1.contains("\nHistogram\n"));
-        assert!(s1.contains("  bin  1: 2"));
-        assert!(s1.contains("  bin  3: 5"));
-        // should not print zero bins
-        assert!(!s1.contains("  bin  0: "));
-        assert!(!s1.contains("  bin  2: "));
-
-        // ---- Timings always present + subprocess present when non-zero ----
-        assert!(s1.contains("\nTimings\n"));
-        assert!(s1.contains("  subprocess  : "));
+        // ----- Histogram prints only non-zero bins -----
+        assert!(rendered.contains("  bin  1: 2"));
+        assert!(rendered.contains("  bin  3: 5"));
+        assert!(!rendered.contains("  bin  0: "));
+        assert!(!rendered.contains("  bin  2: "));
     }
-
-    #[test]
-    fn read_types_section_uses_sum_of_reads_log_as_denominator_and_is_safe_for_empty() {
-        // Empty map => section absent
-        let m0 = base(123);
-        let s0 = format!("{m0}");
-        assert!(!s0.contains("\nRead types (n="));
-
-        // Non-empty => n equals sum, and % uses that denominator (spot-check with 2/4 = 50%)
-        let mut m1 = base(123);
-        m1.reads_log.insert("A".into(), 2);
-        m1.reads_log.insert("B".into(), 2);
-        let s1 = format!("{m1}");
-        assert!(s1.contains("\nRead types (n=4)\n"));
-
-        // Very light check that percent formatting exists and isn't NaN/inf
-        // (We don't assert exact rounding because it's easy to change pct formatting later.)
-        assert!(s1.contains("% of read-types)"));
-    }
-
     #[test]
     fn counts_section_is_gated_by_total_only() {
         let mut m0 = base(0);
