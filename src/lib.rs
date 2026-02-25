@@ -173,7 +173,7 @@ impl fmt::Display for MappingInfo {
             let total = self.error_counts.values().sum();
             writeln!(f, "Reported issues")?;
             writeln!(f, "  {:<32} {:<15} {}", "Error Type", "Count", "Fraction total [%]")?;
-            writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 6))?;
+            writeln!(f, "  {}", "-".repeat(32 + 1 + 15 + 19))?;
             // stable order: sort by key
             let mut keys: Vec<_> = self.error_counts.keys().collect();
             keys.sort();
@@ -310,8 +310,13 @@ impl MappingInfo{
 	}
 
 	// Unified reporting method that logs errors into the HashMap
-    pub fn report(&mut self, issue: impl Into<String>) {
+    pub fn report_error(&mut self, issue: impl Into<String>) {
         *self.error_counts.entry(issue.into()).or_insert(0) += 1;
+    }
+
+    // Unified reporting method that logs errors into the HashMap
+    pub fn report(&mut self, info: impl Into<String>) {
+        *self.read_log.entry(info.into()).or_insert(0) += 1;
     }
     
     // Optionally, add a method to retrieve counts for a specific issue
