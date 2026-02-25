@@ -159,7 +159,7 @@ impl fmt::Display for MappingInfo {
             for (name, value) in &self.reads_log {
                 writeln!(
                     f,
-                    "  {:<20} {} reads ({:.2}% of read-types)",
+                    "  {:<20} {:<10} reads ({:.2}% of read-types)",
                     format!("{name}:"),
                     value.to_formatted_string(&Locale::en),
                     pct(*value, total)
@@ -181,7 +181,7 @@ impl fmt::Display for MappingInfo {
                 let c = self.error_counts.get(k).copied().unwrap_or(0);
                 writeln!(
                     f,
-                    "  {:<32} {} {:.2}",
+                    "  {:<32} {:<15} {:.2}",
                     k,
                     c.to_formatted_string(&Locale::en),
                     pct(c, total),
